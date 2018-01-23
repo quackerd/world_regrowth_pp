@@ -1,7 +1,7 @@
 --------------------------------------------------------------------------
 --[[ NaturalRegrowth class definition ]]
 -- A modified version of the original desolationspawner.lua
--- It acts as a standalone regrowth manager and is in dependent of the 3 existing ones
+-- It acts as a standalone regrowth manager and is independent of the 3 existing ones
 -- It's unlikely affected by game updates as long as Klei doesn't change the API (they shouldn't)
 -- Klei has copyright over existing code used in this file.
 -- by lolo Jan. 2018.
@@ -16,12 +16,13 @@ return Class(function(self, inst)
     --------------------------------------------------------------------------
     --[[ Constants ]]
     --------------------------------------------------------------------------
-    local RETRY_PER_PREFAB = 5 -- retry 5 times for each prefab
-    local DEBUG = true
+    local RETRY_PER_PREFAB = 10 -- retry 5 times for each prefab
+    local DEBUG = false
+    local DEBUG_TELE = false
     local UPDATE_PERIOD = 31 -- less likely to update on the same frame as others
     local BASE_RADIUS = 20
-    local EXCLUDE_RADIUS = 3
-    local MIN_PLAYER_DISTANCE = 64 * 1.2 -- this is our "outer" sleep radius
+    local EXCLUDE_RADIUS = 2
+    local MIN_PLAYER_DISTANCE = 40 -- this is our "outer" sleep radius
     
     --------------------------------------------------------------------------
     --[[ Member variables ]]
@@ -85,7 +86,10 @@ return Class(function(self, inst)
             end
 
             if DEBUG then
-                print("[RegrowthEx] Spawned a ",product," for prefab ",prefab," at ", "(", x,0,z, ")", " in ", area)
+                print("[NaturalRegrowth] Spawned a ",product," for prefab ",prefab," at ", "(", x,0,z, ")", " in ", area)
+            end
+
+            if DEBUG_TELE then
                 c_teleport(x,0,z)
             end
 
@@ -153,27 +157,36 @@ return Class(function(self, inst)
         for prefab in pairs(area_data) do
 
             if DEBUG then
-                print("[RegrowthEx] Regrowing ", prefab, "...")
+                print("[NaturalRegrowth] Regrowing ", prefab, "...")
             end
 
             local areas = area_data[prefab]
-            local rand = math.random(1, #areas)
-            local attempts = 0
 
-            while attempts < RETRY_PER_PREFAB do
-                local success = TryRegrowth(areas[rand], prefab, regrowth_table[prefab])
-                attempts = attempts + 1
+            if regrowth_table[prefab] == nil then
+                if DEBUG then
+                    print("[NaturalRegrowth] Discarded")
+                end
+                area_data[prefab] = nil
+            else
+                local rand = math.random(1, #areas)
+                local attempts = 0
 
-                if success then
-                    print("[RegrowthEx] Succeeded after ", attempts, " attempts.")
-                    break
+                while attempts < RETRY_PER_PREFAB do
+                    local success = TryRegrowth(areas[rand], prefab, regrowth_table[prefab])
+                    attempts = attempts + 1
+
+                    if success then
+                        if DEBUG then
+                            print("[NaturalRegrowth] Succeeded after ", attempts, " attempts.")
+                        end
+                        break
+                    end
+                end
+
+                if DEBUG and attempts == RETRY_PER_PREFAB then
+                    print("[NaturalRegrowth] Failed after ", attempts, " attempts.")
                 end
             end
-
-            if DEBUG and attempts == RETRY_PER_PREFAB then
-                print("[RegrowthEx] Failed after ", attempts, " attempts.")
-            end
-            
         end
     end
     
