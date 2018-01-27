@@ -1,7 +1,7 @@
-name = "World Regrowth Ex"
+name = "Advanced World Regrowth"
 description = "Advanced world regrowth"
 author = "lolo"
-version = "0.0.1"
+version = "1.0.0"
 
 forumthread = ""
 

@@ -3,27 +3,25 @@
 -- A modified version of the original desolationspawner.lua
 -- It acts as a standalone regrowth manager and is independent of the 3 existing ones
 -- It's unlikely affected by game updates as long as Klei doesn't change the API (they shouldn't)
--- Klei has copyright over existing code used in this file.
--- by lolo Jan. 2018.
+-- by lolo Jan. 2018
 --------------------------------------------------------------------------
 
 return Class(function(self, inst)
 
-    assert(TheWorld.ismastersim, "natrual_regrowth should not exist on client")
+    assert(inst.ismastersim, "natrual_regrowth should not exist on client")
     
     require "map/terrain"
     
     --------------------------------------------------------------------------
     --[[ Constants ]]
     --------------------------------------------------------------------------
-    local RETRY_PER_PREFAB = 10 -- retry 5 times for each prefab
     local DEBUG = false
     local DEBUG_TELE = false
-    local UPDATE_PERIOD = 31 -- less likely to update on the same frame as others
+    local UPDATE_PERIOD = 9
     local BASE_RADIUS = 20
-    local EXCLUDE_RADIUS = 2
-    local MIN_PLAYER_DISTANCE = 40 -- this is our "outer" sleep radius
-    
+    local EXCLUDE_RADIUS = 3
+    local MIN_PLAYER_DISTANCE = 40
+    local THREADS_PER_BATCH = 5
     --------------------------------------------------------------------------
     --[[ Member variables ]]
     --------------------------------------------------------------------------
@@ -34,6 +32,7 @@ return Class(function(self, inst)
     --Private
     local regrowth_table = {}
     local area_data = {}
+    local intervals = {}
     
     --------------------------------------------------------------------------
     --[[ Private member functions ]]
@@ -57,8 +56,8 @@ return Class(function(self, inst)
             return false
         end
         
-        if not (TheWorld.Map:CanPlantAtPoint(x, y, z) and
-                TheWorld.Map:CanPlacePrefabFilteredAtPoint(x, y, z, prefab))
+        if not (inst.Map:CanPlantAtPoint(x, y, z) and
+                inst.Map:CanPlacePrefabFilteredAtPoint(x, y, z, prefab))
             or (RoadManager ~= nil and RoadManager:IsOnRoad(x, 0, z)) then
             -- Not ground we can grow on
             return false
@@ -67,13 +66,13 @@ return Class(function(self, inst)
     end
     
     local function TryRegrowth(area, prefab, product)
-        if TheWorld.topology.nodes[area] == nil then
+        if inst.topology.nodes[area] == nil then
             return false
         end
 
-        local points_x, points_y = TheWorld.Map:GetRandomPointsForSite(TheWorld.topology.nodes[area].x, TheWorld.topology.nodes[area].y, TheWorld.topology.nodes[area].poly, 1)
+        local points_x, points_y = inst.Map:GetRandomPointsForSite(inst.topology.nodes[area].x, inst.topology.nodes[area].y, inst.topology.nodes[area].poly, 1)
         if #points_x < 1 or #points_y < 1 then
-            return
+            return false
         end
         local x = points_x[1]
         local z = points_y[1]
@@ -95,20 +94,32 @@ return Class(function(self, inst)
 
             return true
         else
-
+            if DEBUG then
+                print("[NaturalRegrowth] Failed to spawn a ",product," for prefab ",prefab," at ", "(", x,0,z, ")", " in ", area)
+            end
             return false
         end
     end
-    
+
+    local function PrintDensities()
+        for area, densities in pairs(inst.generated.densities) do
+            for k,v in pairs(densities) do
+                print(area, k, v)
+            end
+        end
+    end
+
     local function PopulateAreaData(prefab)
-        if TheWorld.generated == nil then
+        if inst.generated == nil then
             -- Still starting up, not ready yet.
             return
         end
 
-        for area, densities in pairs(TheWorld.generated.densities) do
+        -- PrintDensities()
+
+        for area, densities in pairs(inst.generated.densities) do
             if densities[prefab] ~= nil then
-                for id, v in ipairs(TheWorld.topology.ids) do
+                for id, v in ipairs(inst.topology.ids) do
                     if v == area then
                         if area_data[prefab] == nil then
                             area_data[prefab] = {}
@@ -120,11 +131,15 @@ return Class(function(self, inst)
                 end
             end
         end
+
+        if DEBUG then
+            print("[NaturalRegrowth] Populated ", area_data[prefab] == nil and 0 or #area_data[prefab], " areas for ", prefab)
+        end
     end   
     
     local function PopulateAllAreaData()
         -- This has to be run after 1 frame from startup
-        for prefab, _ in pairs(regrowth_table) do
+        for prefab in pairs(regrowth_table) do
             PopulateAreaData(prefab)
         end
     end
@@ -133,11 +148,16 @@ return Class(function(self, inst)
     --[[ Public member functions ]]
     --------------------------------------------------------------------------
     
-    function self:RegisterRegrowth(prefab, product)
+    function self:RegisterRegrowth(prefab, product, interval)
         if DEBUG then
-            print("Registered ", product, " for prefab " ,prefab )
+            print("[NaturalRegrowth] Registered ", product, " for prefab " ,prefab )
         end
-        regrowth_table[prefab] = product
+        regrowth_table[prefab] = {product = product, interval = interval}
+
+        if intervals[prefab] == nil then
+            intervals[prefab] = interval
+        end
+
         PopulateAreaData(prefab)
     end
     
@@ -152,39 +172,44 @@ return Class(function(self, inst)
     --------------------------------------------------------------------------
     --[[ Update ]]
     --------------------------------------------------------------------------
+
+    local function RegrowPrefabTask(areas, prefab)
+        local rand = math.random(1, #areas)
+        local success = TryRegrowth(areas[rand], prefab, regrowth_table[prefab].product)
+        if success then
+            -- success, reset the timer
+            intervals[prefab] = regrowth_table[prefab] == nil and nil or regrowth_table[prefab].interval
+        end
+    end
     
     function self:LongUpdate(dt)
+        local count = 0
+        local delay = 0
         for prefab in pairs(area_data) do
-
-            if DEBUG then
-                print("[NaturalRegrowth] Regrowing ", prefab, "...")
-            end
-
             local areas = area_data[prefab]
 
             if regrowth_table[prefab] == nil then
-                if DEBUG then
-                    print("[NaturalRegrowth] Discarded")
-                end
                 area_data[prefab] = nil
+                intervals[prefab] = nil
             else
-                local rand = math.random(1, #areas)
-                local attempts = 0
-
-                while attempts < RETRY_PER_PREFAB do
-                    local success = TryRegrowth(areas[rand], prefab, regrowth_table[prefab])
-                    attempts = attempts + 1
-
-                    if success then
-                        if DEBUG then
-                            print("[NaturalRegrowth] Succeeded after ", attempts, " attempts.")
-                        end
-                        break
-                    end
+                if intervals[prefab] > UPDATE_PERIOD then
+                    intervals[prefab] = intervals[prefab] - UPDATE_PERIOD
+                else
+                    intervals[prefab] = 0
+                end
+                
+                if DEBUG then
+                    print("[NaturalRegrowth]", prefab, " has interval ", intervals[prefab])
                 end
 
-                if DEBUG and attempts == RETRY_PER_PREFAB then
-                    print("[NaturalRegrowth] Failed after ", attempts, " attempts.")
+                if intervals[prefab] == 0 then
+                    -- use multiple threads? In the future a threadpool maybe?
+                    inst:DoTaskInTime(delay, function() RegrowPrefabTask(areas,prefab) end)
+                    -- try not to flood the server with threads
+                    count = count + 1
+                    if math.fmod( count,THREADS_PER_BATCH ) == 0 then
+                        delay = delay + 1
+                    end
                 end
             end
         end
@@ -196,25 +221,34 @@ return Class(function(self, inst)
     
     function self:OnSave()
         local data = {
-            areas = {}
+            areas = {},
+            intervals = {}
         }
         for prefab in pairs(area_data) do
             data.areas[prefab] = {}
-            for area in pairs(area_data[prefab]) do
-                table.insert(data.areas[prefab], area)
+
+            for i = 1, #area_data[prefab] do
+                table.insert(data.areas[prefab], area_data[prefab][i])
             end
+        end
+        for prefab, interval in pairs(intervals) do
+            data.intervals[prefab] = interval
         end
         return data
     end
     
     function self:OnLoad(data)
         for prefab in pairs(data.areas) do
-            for area in pairs(data.areas) do
-                if area_data[prefab] == nil then
-                    area_data[prefab] = {}
-                end
-                table.insert(area_data[prefab], area)
+            if area_data[prefab] == nil then
+                area_data[prefab] = {}
             end
+            for i = 1, #data.areas[prefab] do
+                table.insert(area_data[prefab], data.areas[prefab][i])
+            end
+        end
+
+        for prefab, interval in pairs(data.intervals) do
+            intervals[prefab] = interval
         end
     end
     

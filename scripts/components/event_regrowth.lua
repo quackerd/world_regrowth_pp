@@ -1,25 +1,36 @@
 --------------------------------------------------------------------------
 --[[ EventRegrowth class definition ]]
+-- A modified version of the original regrowthmanager.lua
+-- It acts as a standalone regrowth manager and is independent of the 3 existing ones
+-- It's unlikely affected by game updates as long as Klei doesn't change the API (they shouldn't)
+-- by lolo Jan. 2018
 --------------------------------------------------------------------------
 
 return Class(function(self, inst)
-
-    assert(TheWorld.ismastersim, "event_regrowth should not exist on client")
+ 
+    assert(inst.ismastersim, "event_regrowth should not exist on client")
     
     require "map/terrain"
     
     --------------------------------------------------------------------------
     --[[ Constants ]]
     --------------------------------------------------------------------------
-
     local DEBUG = true
-    local DEBUG_TELE = true
-    local RETRY_PER_PREFAB = 10 -- retry 5 times for each prefab
-    local UPDATE_PERIOD = 3 -- less likely to update on the same frame as others
+    local DEBUG_TELE = false
+
+    local UPDATE_PERIOD = 11
     local BASE_RADIUS = 20
-    local EXCLUDE_RADIUS = 2
-    local JITTER_RADIUS = 10
-    local MIN_PLAYER_DISTANCE = 40 -- this is our "outer" sleep radius
+    local EXCLUDE_RADIUS = 3
+    local JITTER_RADIUS = 6
+    local TOTAL_RADIUS = 1000
+    local MIN_PLAYER_DISTANCE = 40
+    local THREADS_PER_BATCH = 5 -- since we retry a lot, we reduce the # of threads to guarantee performance
+    local THREADS_PER_BATCH_HOOK = 5
+    local REGROW_STATUS = {
+        SUCCESS = 0,
+        FAILED = 1,
+        CACHE = 2,
+    }    
     
     --------------------------------------------------------------------------
     --[[ Member variables ]]
@@ -43,83 +54,145 @@ return Class(function(self, inst)
         end
         local position = ent:GetPosition()
 
-        table.insert(entity_list[ent.prefab], position)
+        table.insert(entity_list[ent.prefab], {position = position, interval = regrowth_table[ent.prefab].interval})
         ent:RemoveEventCallback("onremove", EntityDeathEventHandler, nil)
 
         if DEBUG then
-            print("[EventRegrowth] Entity of type ", ent.prefab, " was removed at ", position)
+            print("[EventRegrowth] ", ent.prefab, " was removed at ", position)
         end
     end
 
     local function TestForRegrow(x, y, z, tile)
-        if TheWorld.Map:GetTileAtPoint(x, y, z) ~= tile then
+        local ents = TheSim:FindEntities(x,y,z, BASE_RADIUS, nil, nil, { "structure", "wall" })
+            if #ents > 0 then
+            -- No regrowth around players and their bases
+            return REGROW_STATUS.FAILED
+        end
+
+        if inst.Map:GetTileAtPoint(x, y, z) ~= tile then
             -- keep things in their biome (more or less)
-            return false
+            return REGROW_STATUS.CACHE
         end
     
         local ents = TheSim:FindEntities(x,y,z, EXCLUDE_RADIUS)
         if #ents > 0 then
             -- Too dense
-            return false
+            return REGROW_STATUS.CACHE
         end
 
         if IsAnyPlayerInRange(x,y,z, MIN_PLAYER_DISTANCE, nil) then
+            return REGROW_STATUS.CACHE
+        end
+
+        return REGROW_STATUS.SUCCESS
+    end
+
+    -- duplicate of canregrow in natural regrowth
+    local function CanRegrow(x, y, z, prefab)
+
+        if IsAnyPlayerInRange(x,y,z, MIN_PLAYER_DISTANCE, nil) then
+            return false
+        end
+            
+        local ents = TheSim:FindEntities(x,y,z, EXCLUDE_RADIUS)
+        if #ents > 0 then
+            -- Too dense
             return false
         end
     
         local ents = TheSim:FindEntities(x,y,z, BASE_RADIUS, nil, nil, { "structure", "wall" })
         if #ents > 0 then
-            -- No regrowth around players and their bases
+            -- Don't spawn inside bases
+            return false
+        end
+        
+        if not (inst.Map:CanPlantAtPoint(x, y, z) and
+                inst.Map:CanPlacePrefabFilteredAtPoint(x, y, z, prefab))
+            or (RoadManager ~= nil and RoadManager:IsOnRoad(x, 0, z)) then
+            -- Not ground we can grow on
             return false
         end
         return true
     end
 
-    local function TryRegrowth(prefab, product, position)
-        local x = position.x
-        local y = position.y
-        local z = position.z
-    
-        local orig_tile = TheWorld.Map:GetTileAtPoint(x,y,z)
 
+    local function GetRandomLocation(x, y, z, radius)
         local theta = math.random() * 2 * PI
-        local radius = math.random() * JITTER_RADIUS
+        local radius = math.random() * radius
         local x = x + radius * math.cos(theta)
         local z = z - radius * math.sin(theta)
-    
-        if TestForRegrow(x,y,z, orig_tile) then
-            local instance = SpawnPrefab(product)
-            if instance ~= nil then
-                instance.Transform:SetPosition(x,y,z)
-                instance:ListenForEvent("onremove", EntityDeathEventHandler, nil)
-
-                if DEBUG then
-                    print("[EventRegrowth] Spawned a ",product," for prefab ",prefab," at ", "(", x,0,z, ")")
-                end
-
-                if DEBUG_TELE then
-                    c_teleport(x,0,z)
-                end
-            end
-            return true
-        else
-            return false
-        end
+        return x,y,z
     end
 
-    local function HookAllEntities()
+    local function TryRegrowth(prefab, product, position)
+        local x,y,z = GetRandomLocation(position.x,position.y,position.z,JITTER_RADIUS)
+        local orig_tile = inst.Map:GetTileAtPoint(x,y,z)
+        local status = TestForRegrow(x,y,z, orig_tile)
+        
+        if status == REGROW_STATUS.CACHE then
+            if DEBUG then
+                print("[EventRegrowth] Cached a ",product," for prefab ",prefab," at ", x, ",", y,",",z)
+            end
+            return false
+        end
+
+        if status == REGROW_STATUS.FAILED then
+            -- for the failed case, we want to try spawning at a random location
+            x,y,z = GetRandomLocation(position.x,position.y,position.z,TOTAL_RADIUS)
+            
+            if not CanRegrow(x,y,z, product) then
+                -- if cannot regrow, return CACHE status
+                if DEBUG then
+                    print("[EventRegrowth] Failed to spawn a ",product," for prefab ",prefab," at ", x, ",", y,",",z)
+                end
+                return false
+            end
+        end
+        
+        local instance = SpawnPrefab(product)
+        if instance ~= nil then
+            instance.Transform:SetPosition(x,y,z)
+            instance:ListenForEvent("onremove", EntityDeathEventHandler, nil)
+
+            if DEBUG then
+                print("[EventRegrowth] Spawned a ",product," for prefab ",prefab," at ", x, ",", y,",",z)
+            end
+
+            if DEBUG_TELE then
+                c_teleport(x,0,z)
+            end
+
+        end
+
+        return true
+    end
+
+    local function HookEntities(prefab)
         while next(Ents) == nil do
         end
+
         local count = 0
         for k, v in pairs(Ents) do
-            if regrowth_table[v.prefab] ~= nil then
+            if v.prefab == prefab then
                 v:RemoveEventCallback("onremove", EntityDeathEventHandler, nil)
                 v:ListenForEvent("onremove", EntityDeathEventHandler, nil)
                 count = count + 1
             end
         end
         if DEBUG then
-            print("[EventRegrowth] Hooked ", count, " entities.")
+            print("[EventRegrowth] Hooked ", count, " ",prefab)
+        end
+    end
+
+    local function HookAllEntities(ents)
+        local count = 0
+        local delay = 0
+        for prefab in pairs(ents) do
+            inst:DoTaskInTime(delay, function() HookEntities(prefab) end)
+            count = count + 1 
+            if math.fmod(count, THREADS_PER_BATCH_HOOK) == 0 then
+                delay = delay + 1
+            end
         end
     end
 
@@ -130,11 +203,15 @@ return Class(function(self, inst)
         regrowth_table_populated_by_mod = true
     end
 
-    function self:RegisterRegrowth(prefab, product)
+    function self:RegisterRegrowth(prefab, product, interval)
         if regrowth_table[prefab] == nil then
             -- avoid duplicate registration
-            regrowth_table[prefab] = product
-            HookAllEntities()
+            regrowth_table[prefab] = 
+            {
+                product = product,
+                interval = interval
+            }
+            HookEntities(prefab)
         end
 
         if DEBUG then
@@ -147,12 +224,23 @@ return Class(function(self, inst)
     --------------------------------------------------------------------------
     
     inst:DoPeriodicTask(UPDATE_PERIOD, function() self:LongUpdate(UPDATE_PERIOD) end)
+    inst:ListenForEvent("ms_cyclecomplete", function() HookAllEntities(regrowth_table) end) -- every ~ 1 day we rehook every entities
+    inst:DoTaskInTime(0, function() HookAllEntities(regrowth_table) end)
 
-    inst:DoPeriodicTask(99, HookAllEntities, 0)
     --------------------------------------------------------------------------
     --[[ Update ]]
     --------------------------------------------------------------------------
-    
+    local function RegrowPrefabTask(prefab)
+        for i = #entity_list[prefab],1,-1 do
+            local success = TryRegrowth(prefab, regrowth_table[prefab].product, entity_list[prefab][i].position)
+                
+            if success then
+                -- remove from the list if it's success or failed
+                table.remove(entity_list[prefab], i)
+            end
+        end
+    end
+
     function self:LongUpdate(dt)
         if not regrowth_table_populated_by_mod then
             -- do nothing if the table is not fully initialized
@@ -160,39 +248,38 @@ return Class(function(self, inst)
             return
         end
 
+        local count = 0
+        local delay = 0
         for prefab in pairs(entity_list) do
             if entity_list[prefab] == nil or #entity_list[prefab] == 0 then
                 -- only do meaningful work
             else
-                if DEBUG then
-                    print("[EventRegrowth] Regrowing ", prefab, "...")
-                end
                 if regrowth_table[prefab] == nil then
                     -- if we don't have it registered, discard
                     entity_list[prefab] = nil
-                    if DEBUG then
-                        print("[EventRegrowth] Discarded")
-                    end
                 else
-                    for i = #entity_list[prefab],1,-1 do
+                    for i = 1, #entity_list[prefab] do
+                        -- decrease the interval
+                        if entity_list[prefab][i].interval > UPDATE_PERIOD then
+                            entity_list[prefab][i].interval = entity_list[prefab][i].interval - UPDATE_PERIOD
+                        else
+                            -- else set to 0 and regen
+                            entity_list[prefab][i].interval = 0
+                        end
+
                         if DEBUG then
-                            print("[EventRegrowth] Spawning at location", entity_list[prefab][i])
+                            print("[EventRegrowth]", prefab, " at ", entity_list[prefab][i].position, " has interval ", entity_list[prefab][i].interval )
                         end
-                        local attempts = 0
-                        while attempts < RETRY_PER_PREFAB do
-                            local success = TryRegrowth(prefab, regrowth_table[prefab], entity_list[prefab][i])
-                            attempts = attempts + 1
-        
-                            if success then
-                                print("[EventRegrowth] Succeeded after ", attempts, " attempts.")
-                                -- we respawned this guy, remove from the list
-                                table.remove(entity_list[prefab], i)
-                                break
+
+                        if entity_list[prefab][i].interval == 0 then
+                            -- different threads
+                            inst:DoTaskInTime(delay, function() RegrowPrefabTask(prefab) end)
+
+                            -- try not to flood the server with threads
+                            count = count + 1
+                            if math.fmod( count,THREADS_PER_BATCH ) == 0 then
+                                delay = delay + 1
                             end
-                        end
-        
-                        if DEBUG and attempts == RETRY_PER_PREFAB then
-                            print("[EventRegrowth] Failed after ", attempts, " attempts.")
                         end
                     end
                 end
@@ -205,11 +292,27 @@ return Class(function(self, inst)
     --------------------------------------------------------------------------
     
     function self:OnSave()
-
+        local data = {
+            entities = {}
+        }
+        for prefab in pairs(entity_list) do
+            data.entities[prefab] = {}
+            for i = 1, #entity_list[prefab] do
+                table.insert(data.entities[prefab], {interval = entity_list[prefab][i].interval, position = entity_list[prefab][i].position})
+            end
+        end
+        return data
     end
     
     function self:OnLoad(data)
-
+        for prefab in pairs(data.entities) do
+            if entity_list[prefab] == nil then
+                entity_list[prefab] = {}
+            end
+            for i = 1, #data.entities[prefab] do
+                table.insert(entity_list[prefab], {interval = data.entities[prefab][i].interval, position = data.entities[prefab][i].position})
+            end
+        end
     end
     
     --------------------------------------------------------------------------
