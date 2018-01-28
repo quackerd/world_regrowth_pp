@@ -97,7 +97,7 @@ AddComponentPostInit("event_regrowth", function(component)
 		end
 	end
 	component:FinishModConfig()
-end)  
+end)
 
 
 --"forest" for the overworld

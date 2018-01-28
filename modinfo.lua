@@ -1,7 +1,7 @@
-name = "Advanced World Regrowth"
-description = "Advanced world regrowth including caves!\nSee the Steam Workshop page for more information."
+name = "World Regrowth++"
+version = "0.1.2"
+description = "Version "..version.."\n\nAdvanced world regrowth including caves! See the Steam Workshop page for more information.\n\nHappy hunting and do starve!"
 author = "lolo"
-version = "0.1.0"
 
 forumthread = ""
 

@@ -15,7 +15,7 @@ return Class(function(self, inst)
     --------------------------------------------------------------------------
     --[[ Constants ]]
     --------------------------------------------------------------------------
-    local DEBUG = true
+    local DEBUG = false
     local DEBUG_TELE = false
     local UPDATE_PERIOD = 11
     local BASE_RADIUS = 20
