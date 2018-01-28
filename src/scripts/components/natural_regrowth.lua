@@ -19,7 +19,7 @@ return Class(function(self, inst)
     local DEBUG_TELE = false
     local UPDATE_PERIOD = 11
     local BASE_RADIUS = 20
-    local EXCLUDE_RADIUS = 3
+    local EXCLUDE_RADIUS = 2
     local MIN_PLAYER_DISTANCE = 40
     local THREADS_PER_BATCH = 3
     --------------------------------------------------------------------------

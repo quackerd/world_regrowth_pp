@@ -20,12 +20,12 @@ return Class(function(self, inst)
 
     local UPDATE_PERIOD = 9
     local BASE_RADIUS = 20
-    local EXCLUDE_RADIUS = 3
+    local EXCLUDE_RADIUS = 2
     local JITTER_RADIUS = 6
     local TOTAL_RADIUS = 1000
     local MIN_PLAYER_DISTANCE = 40
     local THREADS_PER_BATCH = 3
-    local THREADS_PER_BATCH_HOOK = 2
+    local THREADS_PER_BATCH_HOOK = 5
     local REGROW_STATUS = {
         SUCCESS = 0,
         FAILED = 1,
@@ -77,6 +77,10 @@ return Class(function(self, inst)
         local ents = TheSim:FindEntities(x,y,z, EXCLUDE_RADIUS)
         if #ents > 0 then
             -- Too dense
+            return REGROW_STATUS.CACHE
+        end
+
+        if not (inst.Map:CanPlantAtPoint(x, y, z)) then
             return REGROW_STATUS.CACHE
         end
 

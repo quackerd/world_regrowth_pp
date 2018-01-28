@@ -1,5 +1,5 @@
 name = "World Regrowth++"
-version = "0.1.2"
+version = "0.1.3"
 description = "Version "..version.."\n\nAdvanced world regrowth including caves! See the Steam Workshop page for more information.\n\nHappy hunting and do starve!"
 author = "lolo"
 
