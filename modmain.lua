@@ -77,7 +77,8 @@ local event =
 	ruins_statue_head = 960,
 	ruins_statue_head_nogem = 951,
 	rabbithouse = 951,
-	slurtlehole = 951
+	slurtlehole = 951,
+	tallbirdnest = 960
 }
 
 AddComponentPostInit("natural_regrowth", function(component)

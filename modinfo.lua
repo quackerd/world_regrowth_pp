@@ -60,6 +60,7 @@ local config_table =
     {"rabbithouse","Rabbit Hutch","Event-based"},
     {"monkeypods","Splumonkey Pod","Event-based"},
     {"slurtlehole", "Slurtle Mound", "Event-based"},
+    {"tallbirdnest", "Tallbird Nest", "Event-based"},
 
     {"fireflies","Fireflies","Event-based"},
     {"tentacle","Tentacle","Event-based"},
