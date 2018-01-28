@@ -8,7 +8,7 @@
 
 return Class(function(self, inst)
 
-    assert(inst.ismastersim, "natrual_regrowth should not exist on client")
+    assert(inst.ismastersim, "natural_regrowth should not exist on client")
     
     require "map/terrain"
     
@@ -17,11 +17,11 @@ return Class(function(self, inst)
     --------------------------------------------------------------------------
     local DEBUG = false
     local DEBUG_TELE = false
-    local UPDATE_PERIOD = 9
+    local UPDATE_PERIOD = 11
     local BASE_RADIUS = 20
     local EXCLUDE_RADIUS = 3
     local MIN_PLAYER_DISTANCE = 40
-    local THREADS_PER_BATCH = 5
+    local THREADS_PER_BATCH = 3
     --------------------------------------------------------------------------
     --[[ Member variables ]]
     --------------------------------------------------------------------------
@@ -33,6 +33,7 @@ return Class(function(self, inst)
     local regrowth_table = {}
     local area_data = {}
     local intervals = {}
+    local regrowth_table_populated_by_mod = false
     
     --------------------------------------------------------------------------
     --[[ Private member functions ]]
@@ -65,18 +66,7 @@ return Class(function(self, inst)
         return true
     end
     
-    local function TryRegrowth(area, prefab, product)
-        if inst.topology.nodes[area] == nil then
-            return false
-        end
-
-        local points_x, points_y = inst.Map:GetRandomPointsForSite(inst.topology.nodes[area].x, inst.topology.nodes[area].y, inst.topology.nodes[area].poly, 1)
-        if #points_x < 1 or #points_y < 1 then
-            return false
-        end
-        local x = points_x[1]
-        local z = points_y[1]
-
+    local function TryRegrowth(x, y, z , prefab, product)
         if CanRegrow(x,0,z, product) then
             local instance = SpawnPrefab(product)
                 
@@ -85,7 +75,7 @@ return Class(function(self, inst)
             end
 
             if DEBUG then
-                print("[NaturalRegrowth] Spawned a ",product," for prefab ",prefab," at ", "(", x,0,z, ")", " in ", area)
+                print("[NaturalRegrowth] Spawned a ",product," for prefab ",prefab," at ", "(", x,0,z, ")")
             end
 
             if DEBUG_TELE then
@@ -95,7 +85,7 @@ return Class(function(self, inst)
             return true
         else
             if DEBUG then
-                print("[NaturalRegrowth] Failed to spawn a ",product," for prefab ",prefab," at ", "(", x,0,z, ")", " in ", area)
+                print("[NaturalRegrowth] Failed to spawn a ",product," for prefab ",prefab," at ", "(", x,0,z, ")")
             end
             return false
         end
@@ -111,12 +101,18 @@ return Class(function(self, inst)
 
     local function PopulateAreaData(prefab)
         if inst.generated == nil then
-            -- Still starting up, not ready yet.
+            -- Still starting up
+            return
+        end
+
+        if area_data[prefab] ~= nil then
+            if DEBUG then
+                print("[NaturalRegrowth] Already populated ", prefab)
+            end
             return
         end
 
         -- PrintDensities()
-
         for area, densities in pairs(inst.generated.densities) do
             if densities[prefab] ~= nil then
                 for id, v in ipairs(inst.topology.ids) do
@@ -125,7 +121,7 @@ return Class(function(self, inst)
                             area_data[prefab] = {}
                         end
 
-                        table.insert(area_data[prefab], id)
+                        area_data[prefab][#area_data[prefab] + 1] = id
                         break
                     end
                 end
@@ -147,6 +143,10 @@ return Class(function(self, inst)
     --------------------------------------------------------------------------
     --[[ Public member functions ]]
     --------------------------------------------------------------------------
+
+    function self:FinishModConfig()
+        regrowth_table_populated_by_mod = true
+    end
     
     function self:RegisterRegrowth(prefab, product, interval)
         if DEBUG then
@@ -173,9 +173,32 @@ return Class(function(self, inst)
     --[[ Update ]]
     --------------------------------------------------------------------------
 
+    -- duplicate of event_regrowth
+    local function GetRandomLocation(x, y, z, radius)
+        local theta = math.random() * 2 * PI
+        local radius = math.random() * radius
+        local x = x + radius * math.cos(theta)
+        local z = z - radius * math.sin(theta)
+        return x,y,z
+    end
+
     local function RegrowPrefabTask(areas, prefab)
+        local success = false
         local rand = math.random(1, #areas)
-        local success = TryRegrowth(areas[rand], prefab, regrowth_table[prefab].product)
+        local area = areas[rand]
+
+        if inst.topology.nodes[area] == nil then
+            return false
+        end
+
+        local points_x, points_y = inst.Map:GetRandomPointsForSite(inst.topology.nodes[area].x, inst.topology.nodes[area].y, inst.topology.nodes[area].poly, 1)
+            
+        if #points_x < 1 or #points_y < 1 then
+            return false
+        end
+
+        success = TryRegrowth(points_x[1], 0, points_y[1], prefab, regrowth_table[prefab].product)
+
         if success then
             -- success, reset the timer
             intervals[prefab] = regrowth_table[prefab] == nil and nil or regrowth_table[prefab].interval
@@ -183,35 +206,42 @@ return Class(function(self, inst)
     end
     
     function self:LongUpdate(dt)
+
+        if not regrowth_table_populated_by_mod then
+            -- do nothing if the table is not fully initialized
+            -- in case we accidentally drop some saved entities due to the respawn_table[prefab] == nil check
+            return
+        end
+
         local count = 0
         local delay = 0
+
+        -- area data because we only care about stuff that can naturally spawn
         for prefab in pairs(area_data) do
-            local areas = area_data[prefab]
-
-            if regrowth_table[prefab] == nil then
-                area_data[prefab] = nil
-                intervals[prefab] = nil
-            else
-                if intervals[prefab] > UPDATE_PERIOD then
-                    intervals[prefab] = intervals[prefab] - UPDATE_PERIOD
+                if regrowth_table[prefab] == nil or area_data[prefab] == nil then
+                    -- if regrowth table didn't register, or the entity doesn't have a natural density, do nothing
+                    intervals[prefab] = nil
                 else
-                    intervals[prefab] = 0
-                end
-                
-                if DEBUG then
-                    print("[NaturalRegrowth]", prefab, " has interval ", intervals[prefab])
-                end
+                    if intervals[prefab] > UPDATE_PERIOD then
+                        intervals[prefab] = intervals[prefab] - UPDATE_PERIOD
+                    else
+                        intervals[prefab] = 0
+                    end
+                    
+                    if DEBUG then
+                        print("[NaturalRegrowth]", prefab, " has interval ", intervals[prefab])
+                    end
 
-                if intervals[prefab] == 0 then
-                    -- use multiple threads? In the future a threadpool maybe?
-                    inst:DoTaskInTime(delay, function() RegrowPrefabTask(areas,prefab) end)
-                    -- try not to flood the server with threads
-                    count = count + 1
-                    if math.fmod( count,THREADS_PER_BATCH ) == 0 then
-                        delay = delay + 1
+                    if intervals[prefab] == 0 then
+                        -- use multiple threads? In the future a threadpool maybe?
+                        inst:DoTaskInTime(delay, function() RegrowPrefabTask(area_data[prefab], prefab) end)
+                        -- try not to flood the server with threads
+                        count = count + 1
+                        if math.fmod( count,THREADS_PER_BATCH ) == 0 then
+                            delay = delay + 1
+                        end
                     end
                 end
-            end
         end
     end
     
@@ -228,27 +258,44 @@ return Class(function(self, inst)
             data.areas[prefab] = {}
 
             for i = 1, #area_data[prefab] do
-                table.insert(data.areas[prefab], area_data[prefab][i])
+                data.areas[prefab][#data.areas[prefab] + 1] = area_data[prefab][i]
+            end
+            
+            if DEBUG then
+                print("[NaturalRegrowth] Saved ", #data.areas[prefab]," areas for ", prefab)
             end
         end
         for prefab, interval in pairs(intervals) do
-            data.intervals[prefab] = interval
+            if interval ~= nil then
+                -- it can be set to nil in the event loop
+                data.intervals[prefab] = interval
+                if DEBUG then
+                    print("[NaturalRegrowth] Saved interval ", data.intervals[prefab]," for ", prefab)
+                end
+            end
         end
         return data
     end
     
     function self:OnLoad(data)
         for prefab in pairs(data.areas) do
-            if area_data[prefab] == nil then
-                area_data[prefab] = {}
-            end
-            for i = 1, #data.areas[prefab] do
-                table.insert(area_data[prefab], data.areas[prefab][i])
+                if area_data[prefab] == nil then
+                    area_data[prefab] = {}
+                for i = 1, #data.areas[prefab] do
+                    area_data[prefab][#area_data[prefab] + 1] = data.areas[prefab][i]
+                end
+
+                if DEBUG then
+                    print("[NaturalRegrowth] Loaded", #area_data[prefab]," areas for ", prefab)
+                end
             end
         end
 
         for prefab, interval in pairs(data.intervals) do
             intervals[prefab] = interval
+            if DEBUG then
+                print("[NaturalRegrowth] Loaded interval ", intervals[prefab]," for ", prefab)
+            end
         end
     end
     

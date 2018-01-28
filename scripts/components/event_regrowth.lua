@@ -15,17 +15,17 @@ return Class(function(self, inst)
     --------------------------------------------------------------------------
     --[[ Constants ]]
     --------------------------------------------------------------------------
-    local DEBUG = true
+    local DEBUG = false
     local DEBUG_TELE = false
 
-    local UPDATE_PERIOD = 11
+    local UPDATE_PERIOD = 9
     local BASE_RADIUS = 20
     local EXCLUDE_RADIUS = 3
     local JITTER_RADIUS = 6
     local TOTAL_RADIUS = 1000
     local MIN_PLAYER_DISTANCE = 40
-    local THREADS_PER_BATCH = 5 -- since we retry a lot, we reduce the # of threads to guarantee performance
-    local THREADS_PER_BATCH_HOOK = 5
+    local THREADS_PER_BATCH = 3
+    local THREADS_PER_BATCH_HOOK = 2
     local REGROW_STATUS = {
         SUCCESS = 0,
         FAILED = 1,
@@ -54,7 +54,7 @@ return Class(function(self, inst)
         end
         local position = ent:GetPosition()
 
-        table.insert(entity_list[ent.prefab], {position = position, interval = regrowth_table[ent.prefab].interval})
+        entity_list[ent.prefab][#entity_list[ent.prefab]+1] = {position = position, interval = regrowth_table[ent.prefab].interval}
         ent:RemoveEventCallback("onremove", EntityDeathEventHandler, nil)
 
         if DEBUG then
@@ -63,24 +63,25 @@ return Class(function(self, inst)
     end
 
     local function TestForRegrow(x, y, z, tile)
+
+        if IsAnyPlayerInRange(x,y,z, MIN_PLAYER_DISTANCE, nil) then
+            return REGROW_STATUS.CACHE
+        end
+
         local ents = TheSim:FindEntities(x,y,z, BASE_RADIUS, nil, nil, { "structure", "wall" })
-            if #ents > 0 then
+        if #ents > 0 then
             -- No regrowth around players and their bases
             return REGROW_STATUS.FAILED
         end
-
-        if inst.Map:GetTileAtPoint(x, y, z) ~= tile then
-            -- keep things in their biome (more or less)
-            return REGROW_STATUS.CACHE
-        end
-    
+            
         local ents = TheSim:FindEntities(x,y,z, EXCLUDE_RADIUS)
         if #ents > 0 then
             -- Too dense
             return REGROW_STATUS.CACHE
         end
 
-        if IsAnyPlayerInRange(x,y,z, MIN_PLAYER_DISTANCE, nil) then
+        if inst.Map:GetTileAtPoint(x, y, z) ~= tile then
+            -- keep things in their biome (more or less)
             return REGROW_STATUS.CACHE
         end
 
@@ -211,6 +212,7 @@ return Class(function(self, inst)
                 product = product,
                 interval = interval
             }
+
             HookEntities(prefab)
         end
 
@@ -230,9 +232,9 @@ return Class(function(self, inst)
     --------------------------------------------------------------------------
     --[[ Update ]]
     --------------------------------------------------------------------------
-    local function RegrowPrefabTask(prefab)
+    local function RegrowPrefabTask(prefab, position)
         for i = #entity_list[prefab],1,-1 do
-            local success = TryRegrowth(prefab, regrowth_table[prefab].product, entity_list[prefab][i].position)
+            local success = TryRegrowth(prefab, regrowth_table[prefab].product, position)
                 
             if success then
                 -- remove from the list if it's success or failed
@@ -273,7 +275,7 @@ return Class(function(self, inst)
 
                         if entity_list[prefab][i].interval == 0 then
                             -- different threads
-                            inst:DoTaskInTime(delay, function() RegrowPrefabTask(prefab) end)
+                            inst:DoTaskInTime(delay, function() RegrowPrefabTask(prefab, entity_list[prefab][i].position) end)
 
                             -- try not to flood the server with threads
                             count = count + 1
@@ -296,9 +298,15 @@ return Class(function(self, inst)
             entities = {}
         }
         for prefab in pairs(entity_list) do
-            data.entities[prefab] = {}
-            for i = 1, #entity_list[prefab] do
-                table.insert(data.entities[prefab], {interval = entity_list[prefab][i].interval, position = entity_list[prefab][i].position})
+            if entity_list[prefab] ~= nil then
+                -- could be nil (set in the event loop)
+                data.entities[prefab] = {}
+                for i = 1, #entity_list[prefab] do
+                    data.entities[prefab][#data.entities[prefab] + 1] = {interval = entity_list[prefab][i].interval, position = entity_list[prefab][i].position}
+                end
+                if DEBUG then
+                    print("[EventRegrowth] Saved ", #data.entities[prefab]," entities for ", prefab)
+                end
             end
         end
         return data
@@ -308,9 +316,12 @@ return Class(function(self, inst)
         for prefab in pairs(data.entities) do
             if entity_list[prefab] == nil then
                 entity_list[prefab] = {}
-            end
-            for i = 1, #data.entities[prefab] do
-                table.insert(entity_list[prefab], {interval = data.entities[prefab][i].interval, position = data.entities[prefab][i].position})
+                for i = 1, #data.entities[prefab] do
+                    entity_list[prefab][#entity_list[prefab] + 1] = {interval = data.entities[prefab][i].interval, position = data.entities[prefab][i].position}
+                end
+                if DEBUG then
+                    print("[EventRegrowth] Loaded ", #entity_list[prefab]," entities for ", prefab)
+                end
             end
         end
     end
