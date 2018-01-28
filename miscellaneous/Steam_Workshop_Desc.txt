@@ -1,0 +1,87 @@
+[b]A world regrowth mod with cave support[/b]
+
+[h1]1. Introduction[/h1]
+
+The Advanced World Regrowth (AWR) is based on the game's internal regrowth mechanics. It does not modify/overwrite any source files, therefore it has great compatibility with future updates as long as Klei doesn't change the API (they shouldn't). It is also optimized to be smooth and not resource-consuming.
+
+The AMR maintains different regrowth rates for different entities. The regrowth rate configuration is currently not exposed to users (it probably will never be) due to the subjectivity. Any growth rate tuning suggestions are welcome.
+
+When respawning entities, the AMR mod tries to spawn "legitimately" - away from players and structures, in the same biome, close to death locations. The AMR mod supports two types of regrowth - natural and event-based.
+
+- Natural regrowth suits "natural" entities such as trees/saplings. They regrow at random locations in their natural biome.
+
+- Event-based regrowth applies to "living" entities such as clockwork monsters, pig houses. Event-base regrowth triggers after an entity is destroyed/removed. The mod tries to regrow near its death location. In case of failure, the mod will try to spawn at a random location on the map, still enforcing the same rules.
+
+The biggest difference is that the number of natural-regrowth entities increases over time whereas the number of event-based entities does not exceed the existing number of entities.
+
+[h1]2. Supported Entities [/h1]
+Users are allowed to toggle regrowth for every supported entity. However, regrowth types and regrowth rates are preset and not available for configuration.
+Here is a list of supported entities and their respective regrowth rate and type.
+
+[b]Entity Type - Regrowth Type / Regrowth Rate (days per 1 entity)[/b]
+
+Evergreen - Natural / 0.5
+Birchnut Tree - Natural / 0.5
+Spiky Tree - Natural / 1
+Twiggy Tree - Natural / 1
+Marble Tree - Event-based / 2
+Totally Normal Tree - Event-based / 2
+Berry Bush - Natural / 3
+Spiky Berry Bush - Natural / 3
+Juicy Berry Bush - Natural / 3
+
+Carrot - Natural / 0.5
+Flower - Natural / 0.5
+Evil Flower - Event-based / 1
+Blue Mushroom - Natural / 0.5
+Red Mushroom - Natural / 0.5
+Green Mushroom - Natural / 0.5
+Cactus - Natural / 1
+Mandrake - Event-based / 2
+
+Reeds - Natural / 1
+Sapling - Natural / 0.5
+Grass - Natural / 0.5
+Spiky Bush - Natural / 1
+
+Boulder - Natural / 0.5
+Gold Vein - Natural / 0.5
+Flintless Boulder - Natural / 0.5
+Moon Rock - Natural / 1
+Stalagmite - Natural / 1
+Tall Stalagmite - Natural / 1
+
+Beehive - Event-based / 1
+Killer Bee Hive - Event-based / 2
+Hound Mound - Event-based / 3
+Pig House - Event-based / 2
+Rundown House - Event-based / 2
+Spider Den - Event-based / 3
+Hollow Stump - Event-based / 2
+Rabbit Hutch - Event-based / 2
+Splumonkey Pod - Event-based / 2
+Slurtle Mound - Event-based / 2
+
+Fireflies - Event-based / 1
+Tentacle - Event-based / 1
+Clockwork Knight - Event-based / 3
+Clockwork Bishop - Event-based / 3
+Clockwork Rook - Event-based / 3
+Damaged Knight - Event-based / 3
+Damaged Bishop - Event-based / 3
+Damaged Rook - Event-based / 3
+
+Ancient Mage Statue - Event-based / 2
+Gemless Ancient Mage Statue - Event-based / 2
+Ancient Head Statue - Event-based / 2
+Gemless Ancient Head Statue - Event-based / 2
+
+[h1]3. Bug Reports[/h1]
+Please report bugs here or directly to the [url=https://github.com/secXsQuared/DST-World-Regrowth-Ex] github project page[/url].
+The project is licensed under [url=https://choosealicense.com/licenses/mit/]the MIT license[/url].
+
+[h1]4. Future work[/h1]
+1. Make an icon.
+2. Features requests are welcome.
+
+Happy hunting and do starve!
