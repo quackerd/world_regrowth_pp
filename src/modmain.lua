@@ -34,7 +34,7 @@ local config_table =
     {"red_mushroom","Red Mushroom",REGROWTH_TYPE.NATURAL, 240},
     {"green_mushroom","Green Mushroom",REGROWTH_TYPE.NATURAL, 240},
     {"cactus","Cactus",REGROWTH_TYPE.NATURAL, 479},
-    {"mandrake","Mandrake",REGROWTH_TYPE.EVENT, 969},
+    {"mandrake_planted","Mandrake",REGROWTH_TYPE.EVENT, 969},
 
     {"reeds","Reeds",REGROWTH_TYPE.NATURAL, 480},
     {"sapling","Sapling",REGROWTH_TYPE.NATURAL, 240},

@@ -241,8 +241,9 @@ return Class(function(self, inst)
                     end
 
                     if intervals[prefab] == 0 then
+                        local area = area_data[prefab]
                         -- use multiple threads? In the future a threadpool maybe?
-                        inst:DoTaskInTime(delay, function() RegrowPrefabTask(area_data[prefab], prefab) end)
+                        inst:DoTaskInTime(delay, function() RegrowPrefabTask(area, prefab) end)
                         -- try not to flood the server with threads
                         count = count + 1
                         if math.fmod( count,THREADS_PER_BATCH ) == 0 then

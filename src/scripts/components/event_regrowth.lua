@@ -54,7 +54,7 @@ return Class(function(self, inst)
         end
         local position = ent:GetPosition()
 
-        entity_list[ent.prefab][#entity_list[ent.prefab]+1] = {position = position, interval = regrowth_table[ent.prefab].interval}
+        entity_list[ent.prefab][#entity_list[ent.prefab]+1] = {position = position, interval = regrowth_table[ent.prefab].interval, remove=false}
         ent:RemoveEventCallback("onremove", EntityDeathEventHandler, nil)
 
         if DEBUG then
@@ -244,14 +244,10 @@ return Class(function(self, inst)
     --------------------------------------------------------------------------
     --[[ Update ]]
     --------------------------------------------------------------------------
-    local function RegrowPrefabTask(prefab, position)
-        for i = #entity_list[prefab],1,-1 do
-            local success = TryRegrowth(prefab, regrowth_table[prefab].product, position)
-                
-            if success then
-                -- remove from the list if it's success or failed
-                table.remove(entity_list[prefab], i)
-            end
+    local function RegrowPrefabTask(prefab, data)
+        local success = TryRegrowth(prefab, regrowth_table[prefab].product, data.position)
+        if success then
+            data.remove = true
         end
     end
 
@@ -272,27 +268,36 @@ return Class(function(self, inst)
                     -- if we don't have it registered, discard
                     entity_list[prefab] = nil
                 else
-                    for i = 1, #entity_list[prefab] do
-                        -- decrease the interval
-                        if entity_list[prefab][i].interval > UPDATE_PERIOD then
-                            entity_list[prefab][i].interval = entity_list[prefab][i].interval - UPDATE_PERIOD
+                    for i = #entity_list[prefab], 1, -1 do
+                        if entity_list[prefab][i].remove then
+                            -- handle expired objects first
+                            if DEBUG then
+                                print("[EventRegrowth] Removed ", i, "th" , prefab, " at ", entity_list[prefab][i].position, " from entity list - successfully respawned")
+                            end
+                            table.remove(entity_list[prefab], i)
                         else
-                            -- else set to 0 and regen
-                            entity_list[prefab][i].interval = 0
-                        end
+                            -- decrease the interval
+                            if entity_list[prefab][i].interval > UPDATE_PERIOD then
+                                entity_list[prefab][i].interval = entity_list[prefab][i].interval - UPDATE_PERIOD
+                            else
+                                -- else set to 0 and regen
+                                entity_list[prefab][i].interval = 0
+                            end
 
-                        if DEBUG then
-                            print("[EventRegrowth]", prefab, " at ", entity_list[prefab][i].position, " has interval ", entity_list[prefab][i].interval )
-                        end
+                            if DEBUG then
+                                print("[EventRegrowth]", prefab, " at ", entity_list[prefab][i].position, " has interval ", entity_list[prefab][i].interval )
+                            end
 
-                        if entity_list[prefab][i].interval == 0 then
-                            -- different threads
-                            inst:DoTaskInTime(delay, function() RegrowPrefabTask(prefab, entity_list[prefab][i].position) end)
+                            if entity_list[prefab][i].interval == 0 then
+                                -- different threads
+                                local data = entity_list[prefab][i]
+                                inst:DoTaskInTime(delay, function() RegrowPrefabTask(prefab, data) end)
 
-                            -- try not to flood the server with threads
-                            count = count + 1
-                            if math.fmod( count,THREADS_PER_BATCH ) == 0 then
-                                delay = delay + 1
+                                -- try not to flood the server with threads
+                                count = count + 1
+                                if math.fmod( count,THREADS_PER_BATCH ) == 0 then
+                                    delay = delay + 1
+                                end
                             end
                         end
                     end
@@ -314,7 +319,7 @@ return Class(function(self, inst)
                 -- could be nil (set in the event loop)
                 data.entities[prefab] = {}
                 for i = 1, #entity_list[prefab] do
-                    data.entities[prefab][#data.entities[prefab] + 1] = {interval = entity_list[prefab][i].interval, position = entity_list[prefab][i].position}
+                    data.entities[prefab][#data.entities[prefab] + 1] = {interval = entity_list[prefab][i].interval, position = entity_list[prefab][i].position, remove = entity_list[prefab][i].remove}
                 end
                 if DEBUG then
                     print("[EventRegrowth] Saved ", #data.entities[prefab]," entities for ", prefab)
@@ -329,7 +334,7 @@ return Class(function(self, inst)
             if entity_list[prefab] == nil then
                 entity_list[prefab] = {}
                 for i = 1, #data.entities[prefab] do
-                    entity_list[prefab][#entity_list[prefab] + 1] = {interval = data.entities[prefab][i].interval, position = data.entities[prefab][i].position}
+                    entity_list[prefab][#entity_list[prefab] + 1] = {interval = data.entities[prefab][i].interval, position = data.entities[prefab][i].position, remove = data.entities[prefab][i].remove}
                 end
                 if DEBUG then
                     print("[EventRegrowth] Loaded ", #entity_list[prefab]," entities for ", prefab)

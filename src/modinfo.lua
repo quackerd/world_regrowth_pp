@@ -1,6 +1,6 @@
 name = "World Regrowth++"
-version = "0.1.4"
-description = "Version "..version.."\n\nAdvanced world regrowth including caves! See the Steam Workshop page for more information.\n\nHappy hunting and do starve!"
+version = "0.1.5"
+description = "Version "..version.."\n\nAdvanced world regrowth including caves! Please see the Steam Workshop page for the update notes.\n\nHappy hunting and do starve!"
 author = "lolo"
 
 forumthread = ""
@@ -48,7 +48,7 @@ local config_table =
     {"red_mushroom","Red Mushroom",REGROWTH_TYPE.NATURAL, 240},
     {"green_mushroom","Green Mushroom",REGROWTH_TYPE.NATURAL, 240},
     {"cactus","Cactus",REGROWTH_TYPE.NATURAL, 479},
-    {"mandrake","Mandrake",REGROWTH_TYPE.EVENT, 969},
+    {"mandrake_planted","Mandrake",REGROWTH_TYPE.EVENT, 969},
 
     {"reeds","Reeds",REGROWTH_TYPE.NATURAL, 480},
     {"sapling","Sapling",REGROWTH_TYPE.NATURAL, 240},
