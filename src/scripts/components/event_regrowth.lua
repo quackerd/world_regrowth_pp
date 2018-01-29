@@ -209,6 +209,14 @@ return Class(function(self, inst)
     end
 
     function self:RegisterRegrowth(prefab, product, interval)
+
+        if interval == nil then
+            if DEBUG then
+                print("[EventRegrowth] WARNING: interval for ", prefab, " is null. Using default.")
+            end
+            interval = 480
+        end
+
         if regrowth_table[prefab] == nil then
             -- avoid duplicate registration
             regrowth_table[prefab] = 

@@ -149,6 +149,14 @@ return Class(function(self, inst)
     end
     
     function self:RegisterRegrowth(prefab, product, interval)
+
+        if interval == nil then
+            if DEBUG then
+                print("[NaturalRegrowth] WARNING: interval for ", prefab, " is null. Using default.")
+            end
+            interval = 480
+        end
+
         if DEBUG then
             print("[NaturalRegrowth] Registered ", product, " for prefab " ,prefab )
         end
