@@ -1,5 +1,5 @@
 name = "World Regrowth++"
-version = "0.2.0"
+version = "0.2.1"
 description = "Version "..version.."\nPlease reset the mod configuration after updating from 0.1.X to 0.2.0 and above\n\nWorld regrowth with caves support. Please see the Steam Workshop page for changes notes.\n\nHappy hunting and do starve!"
 author = "lolo"
 
