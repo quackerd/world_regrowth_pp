@@ -143,6 +143,9 @@ return Class(function(self, inst)
     --------------------------------------------------------------------------
     --[[ Public member functions ]]
     --------------------------------------------------------------------------
+    function self:GetUpdatePeriod()
+        return UPDATE_PERIOD
+    end
 
     function self:FinishModConfig()
         regrowth_table_populated_by_mod = true
@@ -158,7 +161,7 @@ return Class(function(self, inst)
         end
 
         if DEBUG then
-            print("[NaturalRegrowth] Registered ", product, " for prefab " ,prefab )
+            print("[NaturalRegrowth] Registered ", product, " for prefab " ,prefab, " with interval ", interval)
         end
         regrowth_table[prefab] = {product = product, interval = interval}
 

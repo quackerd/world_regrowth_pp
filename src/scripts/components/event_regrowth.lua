@@ -17,7 +17,6 @@ return Class(function(self, inst)
     --------------------------------------------------------------------------
     local DEBUG = false
     local DEBUG_TELE = false
-
     local UPDATE_PERIOD = 9
     local BASE_RADIUS = 20
     local EXCLUDE_RADIUS = 2
@@ -204,6 +203,10 @@ return Class(function(self, inst)
     --------------------------------------------------------------------------
     --[[ Public member functions ]]
     --------------------------------------------------------------------------
+    function self:GetUpdatePeriod()
+        return UPDATE_PERIOD
+    end
+
     function self:FinishModConfig()
         regrowth_table_populated_by_mod = true
     end
@@ -229,7 +232,7 @@ return Class(function(self, inst)
         end
 
         if DEBUG then
-            print("[EventRegrowth] Registered ", product ," for ", prefab)
+            print("[EventRegrowth] Registered ", product ," for ", prefab, " with interval ", interval)
         end
     end
     
