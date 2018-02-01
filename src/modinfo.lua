@@ -71,7 +71,7 @@ local config_table =
     {"spiderden","Spider Den",REGROWTH_TYPE.EVENT, 6},
     {"catcoonden","Hollow Stump",REGROWTH_TYPE.EVENT, 4},
     {"rabbithouse","Rabbit Hutch",REGROWTH_TYPE.EVENT, 4},
-    {"monkeypods","Splumonkey Pod",REGROWTH_TYPE.EVENT, 4},
+    {"monkeybarrel","Splumonkey Pod",REGROWTH_TYPE.EVENT, 4},
     {"slurtlehole", "Slurtle Mound", REGROWTH_TYPE.EVENT, 4},
     {"tallbirdnest", "Tallbird Nest", REGROWTH_TYPE.EVENT, 4},
 

@@ -11,6 +11,7 @@ return Class(function(self, inst)
     assert(inst.ismastersim, "natural_regrowth should not exist on client")
     
     require "map/terrain"
+    require "wrpp_util"
     
     --------------------------------------------------------------------------
     --[[ Constants ]]
@@ -18,9 +19,6 @@ return Class(function(self, inst)
     local DEBUG = false
     local DEBUG_TELE = false
     local UPDATE_PERIOD = 11
-    local BASE_RADIUS = 20
-    local EXCLUDE_RADIUS = 2
-    local MIN_PLAYER_DISTANCE = 40
     local THREADS_PER_BATCH = 3
     --------------------------------------------------------------------------
     --[[ Member variables ]]
@@ -39,35 +37,8 @@ return Class(function(self, inst)
     --[[ Private member functions ]]
     --------------------------------------------------------------------------
     
-    local function CanRegrow(x, y, z, prefab)
-
-        if IsAnyPlayerInRange(x,y,z, MIN_PLAYER_DISTANCE, nil) then
-            return false
-        end
-            
-        local ents = TheSim:FindEntities(x,y,z, EXCLUDE_RADIUS)
-        if #ents > 0 then
-            -- Too dense
-            return false
-        end
-    
-        local ents = TheSim:FindEntities(x,y,z, BASE_RADIUS, nil, nil, { "structure", "wall" })
-        if #ents > 0 then
-            -- Don't spawn inside bases
-            return false
-        end
-        
-        if not (inst.Map:CanPlantAtPoint(x, y, z) and
-                inst.Map:CanPlacePrefabFilteredAtPoint(x, y, z, prefab))
-            or (RoadManager ~= nil and RoadManager:IsOnRoad(x, 0, z)) then
-            -- Not ground we can grow on
-            return false
-        end
-        return true
-    end
-    
     local function TryRegrowth(x, y, z , prefab, product)
-        if CanRegrow(x,0,z, product) then
+        if TestRegrowthByPrefab(x,0,z, product) == REGROW_STATUS.SUCCESS then
             local instance = SpawnPrefab(product)
                 
             if instance ~= nil then
@@ -75,7 +46,7 @@ return Class(function(self, inst)
             end
 
             if DEBUG then
-                print("[NaturalRegrowth] Spawned a ",product," for prefab ",prefab," at ", "(", x,0,z, ")")
+                print("[NaturalRegrowth] Spawned a product " .. product .. " at " .. GetCoordStr(x,0,z) .. " for prefab " .. prefab)
             end
 
             if DEBUG_TELE then
@@ -85,7 +56,7 @@ return Class(function(self, inst)
             return true
         else
             if DEBUG then
-                print("[NaturalRegrowth] Failed to spawn a ",product," for prefab ",prefab," at ", "(", x,0,z, ")")
+                print("[NaturalRegrowth] Failed to spawn a product " .. product .. " at " .. GetCoordStr(x,0,z) .. " for prefab " .. prefab)
             end
             return false
         end
@@ -107,7 +78,7 @@ return Class(function(self, inst)
 
         if area_data[prefab] ~= nil then
             if DEBUG then
-                print("[NaturalRegrowth] Already populated ", prefab)
+                print("[NaturalRegrowth] Already populated prefab " .. prefab)
             end
             return
         end
@@ -129,7 +100,7 @@ return Class(function(self, inst)
         end
 
         if DEBUG then
-            print("[NaturalRegrowth] Populated ", area_data[prefab] == nil and 0 or #area_data[prefab], " areas for ", prefab)
+            print("[NaturalRegrowth] Populated " .. (area_data[prefab] == nil and 0 or #area_data[prefab]) .. " areas for prefab " .. prefab)
         end
     end   
     
@@ -155,13 +126,13 @@ return Class(function(self, inst)
 
         if interval == nil then
             if DEBUG then
-                print("[NaturalRegrowth] WARNING: interval for ", prefab, " is null. Using default.")
+                print("[NaturalRegrowth] WARNING: interval for prefab " .. prefab .. " is null. Using default.")
             end
             interval = 480
         end
 
         if DEBUG then
-            print("[NaturalRegrowth] Registered ", product, " for prefab " ,prefab, " with interval ", interval)
+            print("[NaturalRegrowth] Registered product " .. product .. " for prefab " .. prefab .. " with interval " .. interval)
         end
         regrowth_table[prefab] = {product = product, interval = interval}
 
@@ -183,15 +154,6 @@ return Class(function(self, inst)
     --------------------------------------------------------------------------
     --[[ Update ]]
     --------------------------------------------------------------------------
-
-    -- duplicate of event_regrowth
-    local function GetRandomLocation(x, y, z, radius)
-        local theta = math.random() * 2 * PI
-        local radius = math.random() * radius
-        local x = x + radius * math.cos(theta)
-        local z = z - radius * math.sin(theta)
-        return x,y,z
-    end
 
     local function RegrowPrefabTask(areas, prefab)
         local success = false
@@ -240,7 +202,7 @@ return Class(function(self, inst)
                     end
                     
                     if DEBUG then
-                        print("[NaturalRegrowth]", prefab, " has interval ", intervals[prefab])
+                        print("[NaturalRegrowth] Prefab " .. prefab .. " has interval " .. intervals[prefab])
                     end
 
                     if intervals[prefab] == 0 then
@@ -274,7 +236,7 @@ return Class(function(self, inst)
             end
             
             if DEBUG then
-                print("[NaturalRegrowth] Saved ", #data.areas[prefab]," areas for ", prefab)
+                print("[NaturalRegrowth] Saved " .. #data.areas[prefab] .. " areas for prefab " .. prefab)
             end
         end
         for prefab, interval in pairs(intervals) do
@@ -282,7 +244,7 @@ return Class(function(self, inst)
                 -- it can be set to nil in the event loop
                 data.intervals[prefab] = interval
                 if DEBUG then
-                    print("[NaturalRegrowth] Saved interval ", data.intervals[prefab]," for ", prefab)
+                    print("[NaturalRegrowth] Saved interval " .. data.intervals[prefab] .. " for prefab " .. prefab)
                 end
             end
         end
@@ -298,7 +260,7 @@ return Class(function(self, inst)
                 end
 
                 if DEBUG then
-                    print("[NaturalRegrowth] Loaded", #area_data[prefab]," areas for ", prefab)
+                    print("[NaturalRegrowth] Loaded" .. #area_data[prefab] .. " areas for prefab " .. prefab)
                 end
             end
         end
@@ -306,7 +268,7 @@ return Class(function(self, inst)
         for prefab, interval in pairs(data.intervals) do
             intervals[prefab] = interval
             if DEBUG then
-                print("[NaturalRegrowth] Loaded interval ", intervals[prefab]," for ", prefab)
+                print("[NaturalRegrowth] Loaded interval " .. intervals[prefab] .. " for prefab " .. prefab)
             end
         end
     end
