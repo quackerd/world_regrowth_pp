@@ -8,8 +8,6 @@ local DEBUG = false
 
 -- Configuration Generation
 -- I can't reference this from another file... duplicate
--- Configuration Generation
--- I can't reference this from another file... duplicate
 local config_table = 
 {
     {"evergreen","Evergreen", REGROWTH_TYPE.NATURAL, 1},

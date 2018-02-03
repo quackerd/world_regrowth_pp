@@ -57,7 +57,7 @@ return Class(function(self, inst)
         ent:RemoveEventCallback("onremove", EntityDeathEventHandler, nil)
 
         if DEBUG then
-            print("[EventRegrowth] " .. ent.prefab .. " was removed at " .. GetPosStr(position))
+            print("[EventRegrowth] " .. ent.prefab .. " was removed at " .. GetPosStr(position) .. " Tile: " .. TheWorld.Map:GetTileAtPoint(position.x, position.y, position.z))
         end
     end
 
@@ -72,21 +72,21 @@ return Class(function(self, inst)
     local function TryRegrowth(prefab, product, position, rand_radius)
         local x,y,z = GetRandomLocation(position.x,position.y,position.z, rand_radius)
 
-        local orig_tile = inst.Map:GetTileAtPoint(x,y,z)
-        local status = TestRegrowthByTile(x,y,z, orig_tile)
-        
-        if status == REGROW_STATUS.CACHE then
+        local orig_tile = inst.Map:GetTileAtPoint(position.x, position.y, position.z)
+        local status = TestRegrowth(x,y,z, prefab, orig_tile)
+
+        if status == REGROW_STATUS.STRUCT then
             if DEBUG then
-                print("[EventRegrowth] Cached a product " .. product .. " at ".. GetCoordStr(x,y,z) .. " for prefab " .. prefab .. " at " .. GetPosStr(position) .. " with rand radius ".. rand_radius)
+                print("[EventRegrowth] Failed to spawn a product " .. product .. " at " .. GetCoordStr(x,y,z) .. " for prefab " .. prefab .. " at " .. GetPosStr(position) .. " with rand radius " .. rand_radius .. " due to " .. GetRStatusStr(status))
             end
-            return REGROW_STATUS.CACHE
+            return status
         end
 
-        if status == REGROW_STATUS.FAILED then
+        if status ~= REGROW_STATUS.SUCCESS then
             if DEBUG then
-                print("[EventRegrowth] Failed to spawn a product " .. product .. " at " .. GetCoordStr(x,y,z) .. " for prefab " .. prefab .. " at " .. GetPosStr(position) .. " with rand radius " .. rand_radius)
+                print("[EventRegrowth] Cached a product " .. product .. " at ".. GetCoordStr(x,y,z) .. " for prefab " .. prefab .. " at " .. GetPosStr(position) .. " with rand radius ".. rand_radius .. " due to " .. GetRStatusStr(status))
             end
-            return REGROW_STATUS.FAILED
+            return status
         end
         
         local instance = SpawnPrefab(product)
@@ -104,7 +104,7 @@ return Class(function(self, inst)
 
         end
 
-        return REGROW_STATUS.SUCCESS
+        return status
     end
 
     local function HookEntities(prefab)
@@ -195,7 +195,7 @@ return Class(function(self, inst)
             data.remove = true
         end
 
-        if success == REGROW_STATUS.FAILED then
+        if success == REGROW_STATUS.STRUCT then
             -- only increase radius when there are structures nearby
             data.retry = data.retry + 1
         end

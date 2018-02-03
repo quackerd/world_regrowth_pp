@@ -38,7 +38,8 @@ return Class(function(self, inst)
     --------------------------------------------------------------------------
     
     local function TryRegrowth(x, y, z , prefab, product)
-        if TestRegrowthByPrefab(x,0,z, product) == REGROW_STATUS.SUCCESS then
+        local status = TestRegrowth(x,0,z, product, nil)
+        if status == REGROW_STATUS.SUCCESS then
             local instance = SpawnPrefab(product)
                 
             if instance ~= nil then
@@ -56,7 +57,7 @@ return Class(function(self, inst)
             return true
         else
             if DEBUG then
-                print("[NaturalRegrowth] Failed to spawn a product " .. product .. " at " .. GetCoordStr(x,0,z) .. " for prefab " .. prefab)
+                print("[NaturalRegrowth] Failed to spawn a product " .. product .. " at " .. GetCoordStr(x,0,z) .. " for prefab " .. prefab .. " due to " .. GetRStatusStr(status))
             end
             return false
         end
@@ -260,7 +261,7 @@ return Class(function(self, inst)
                 end
 
                 if DEBUG then
-                    print("[NaturalRegrowth] Loaded" .. #area_data[prefab] .. " areas for prefab " .. prefab)
+                    print("[NaturalRegrowth] Loaded " .. #area_data[prefab] .. " areas for prefab " .. prefab)
                 end
             end
         end

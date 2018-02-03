@@ -25,8 +25,12 @@ MIN_PLAYER_DISTANCE = 40
 REGROW_STATUS = 
 {
     SUCCESS = 0,
-    FAILED = 1,
-    CACHE = 2
+    STRUCT = 1,
+    CACHE = 2,
+    PLAYER = 3,
+    DENSITY = 4,
+    TILE = 5,
+    ROAD = 6
 }
 
 local function TestStructures(x, y, z, radius)
@@ -42,6 +46,13 @@ local function TestStructures(x, y, z, radius)
     return true
 end
 
+local function CanPlaceAtPoint(x, y, z)
+    local tile = TheWorld.Map:GetTileAtPoint(x, y, z)
+    return tile ~= GROUND.IMPASSABLE and
+        tile ~= GROUND.INVALID and
+        not GROUND_FLOORING[tile]
+end
+
 local function TestPlayers(x, y, z, radius)
     return not IsAnyPlayerInRange(x,y,z, MIN_PLAYER_DISTANCE, nil)
 end
@@ -51,58 +62,31 @@ local function TestEntities(x, y, z, radius)
     return not (#ents > 0)
 end
 
-function TestRegrowthByTile(x, y, z, tile)
+function TestRegrowth(x, y, z, prefab, tile)
 
     if not TestPlayers(x,y,z, MIN_PLAYER_DISTANCE) then
-        return REGROW_STATUS.CACHE
+        return REGROW_STATUS.PLAYER
     end
 
     if not TestStructures(x, y, z, BASE_RADIUS) then
         -- No regrowth around players and their bases
-        return REGROW_STATUS.FAILED
+        return REGROW_STATUS.STRUCT
     end
 
     if not TestEntities(x,y,z, EXCLUDE_RADIUS) then
         -- Too dense
-        return REGROW_STATUS.CACHE
+        return REGROW_STATUS.DENSITY
     end
 
-    if not (TheWorld.Map:CanPlantAtPoint(x, y, z)) then
-        return REGROW_STATUS.CACHE
+    if (RoadManager ~= nil) and (RoadManager:IsOnRoad(x, 0, z)) then
+        return REGROW_STATUS.ROAD
     end
 
-    if TheWorld.Map:GetTileAtPoint(x, y, z) ~= tile then
-        -- keep things in their biome (more or less)
-        return REGROW_STATUS.CACHE
+    if  (CanPlaceAtPoint(x, y, z) and TheWorld.Map:CanPlacePrefabFilteredAtPoint(x, y, z, prefab)) or ((tile ~= nil) and (TheWorld.Map:GetTileAtPoint(x, y, z) == tile)) then
+        return REGROW_STATUS.SUCCESS
     end
 
-    return REGROW_STATUS.SUCCESS
-end
-
-function TestRegrowthByPrefab(x, y, z, prefab)
-
-    if not TestPlayers(x,y,z, MIN_PLAYER_DISTANCE) then
-        return REGROW_STATUS.CACHE
-    end
-
-    if not TestStructures(x, y, z, BASE_RADIUS) then
-        -- No regrowth around players and their bases
-        return REGROW_STATUS.FAILED
-    end
-
-    if not TestEntities(x,y,z, EXCLUDE_RADIUS) then
-        -- Too dense
-        return REGROW_STATUS.CACHE
-    end
-    
-    if not (TheWorld.Map:CanPlantAtPoint(x, y, z) and
-            TheWorld.Map:CanPlacePrefabFilteredAtPoint(x, y, z, prefab))
-        or (RoadManager ~= nil and RoadManager:IsOnRoad(x, 0, z)) then
-        -- Not ground we can grow on
-        return REGROW_STATUS.CACHE
-    end
-
-    return REGROW_STATUS.SUCCESS
+    return REGROW_STATUS.TILE
 end
 
 function GetPosStr(pos)
@@ -111,4 +95,13 @@ end
 
 function GetCoordStr(x,y,z)
     return  "( " .. x .. " , " .. y .. " , ".. z .. " )"
+end
+
+function GetRStatusStr(status)
+    for k, v in pairs(REGROW_STATUS) do
+        if v == status then
+            return k
+        end
+    end
+    return nil
 end
