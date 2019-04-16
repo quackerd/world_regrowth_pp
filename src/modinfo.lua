@@ -1,6 +1,6 @@
 name = "World Regrowth++"
-version = "0.2.3"
-description = "Version "..version.."\nPlease reset the mod configuration after updating from 0.1.X to 0.2.0 and above\n\nWorld regrowth with caves support. Please see the Steam Workshop page for changes notes.\n\nHappy hunting and do starve!"
+version = "1.0"
+description = "Version "..version.."\n\nWorld regrowth with caves support. Please see the Steam Workshop page for changes notes.\n\nHappy hunting and do starve!"
 author = "lolo"
 
 forumthread = ""
@@ -65,6 +65,7 @@ local config_table =
     {"stalagmite","Stalagmite",REGROWTH_TYPE.NATURAL, 1},
     {"stalagmite_tall","Tall Stalagmite",REGROWTH_TYPE.NATURAL, 1},
 
+    {"rabbithole","Rabbit Hole",REGROWTH_TYPE.EVENT, 2},
     {"beehive","Beehive",REGROWTH_TYPE.EVENT, 4},
     {"wasphive","Killer Bee Hive",REGROWTH_TYPE.EVENT, 6},
     {"houndmound","Hound Mound",REGROWTH_TYPE.EVENT, 6},
@@ -114,7 +115,7 @@ for i = 1, #config_table do
     {
         name = config_table[i][1],
         label = config_table[i][2],
-        hover = config_table[i][3] == REGROWTH_TYPE.EVENT and "Event-based" or "Natural",
+        hover = config_table[i][3] == REGROWTH_TYPE.EVENT and "Event" or "Natural",
         options = opt,
         default = config_table[i][4]
     }

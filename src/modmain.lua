@@ -51,6 +51,7 @@ local config_table =
     {"stalagmite","Stalagmite",REGROWTH_TYPE.NATURAL, 1},
     {"stalagmite_tall","Tall Stalagmite",REGROWTH_TYPE.NATURAL, 1},
 
+    {"rabbithole","Rabbit Hole",REGROWTH_TYPE.EVENT, 2},
     {"beehive","Beehive",REGROWTH_TYPE.EVENT, 4},
     {"wasphive","Killer Bee Hive",REGROWTH_TYPE.EVENT, 6},
     {"houndmound","Hound Mound",REGROWTH_TYPE.EVENT, 6},

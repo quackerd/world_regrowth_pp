@@ -15,7 +15,9 @@ EXCLUDE_PREFABS =
     mermhead = 1,
     pighead = 1,
     pandoraschest = 1,
-    minotaurchest = 1
+    minotaurchest = 1,
+    pighouse = 1,
+    rabbithouse = 1
 }
 
 BASE_RADIUS = 20
